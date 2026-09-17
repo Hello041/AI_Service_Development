@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx --yes prisma@7.10.0 init --help)",
+      "WebFetch(domain:pris.ly)",
+      "WebFetch(domain:www.prisma.io)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(echo \"started pid $!\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/ --max-time 15)"
+    ]
+  }
+}
