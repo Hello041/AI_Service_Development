@@ -46,7 +46,8 @@ export function formatDeadline(deadline: Date): string {
 // "25분 남음" / "5시간 남음" / "2일 남음". 이미 지난 마감 시각에는 쓰지 않는다.
 export function formatRemaining(deadline: Date, now: Date): string {
   const left = deadline.getTime() - now.getTime();
-  if (left < HOUR) return `${Math.max(1, Math.ceil(left / MINUTE))}분 남음`;
+  // 시간·일과 같이 내림한다. 1분 미만은 "1분 남음"으로 보여준다.
+  if (left < HOUR) return `${Math.max(1, Math.floor(left / MINUTE))}분 남음`;
   if (left < DAY) return `${Math.floor(left / HOUR)}시간 남음`;
   return `${Math.floor(left / DAY)}일 남음`;
 }
