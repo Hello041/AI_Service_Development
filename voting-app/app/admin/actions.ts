@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { logIn, logOut, requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
+import { parseKstInput } from "@/lib/kst-time";
 import { createPollErrorMessages } from "@/lib/poll-messages";
 
 export type LoginState = { error?: string };
@@ -35,7 +36,12 @@ export async function createPollAction(
   await requireAdmin();
   const question = String(formData.get("question") ?? "");
   const options = formData.getAll("option").map(String);
-  const result = await getPollService().createPoll(question, options);
+  let deadline: Date | null = null;
+  if (formData.get("noDeadline") !== "on") {
+    deadline = parseKstInput(String(formData.get("deadline") ?? ""));
+    if (!deadline) return { error: "마감 시각을 날짜와 시각까지 입력해 주세요." };
+  }
+  const result = await getPollService().createPoll(question, options, { deadline });
   if (!result.ok) return { error: createPollErrorMessages[result.error] };
   redirect(`/admin/polls/${result.id}?created=1`);
 }

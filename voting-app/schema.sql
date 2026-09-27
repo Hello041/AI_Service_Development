@@ -27,3 +27,6 @@ CREATE TABLE IF NOT EXISTS votes (
 
 -- 같은 시각에 만든 투표의 순서를 정하기 위한 만든 순서 번호. 기존 행에도 채워진다.
 ALTER TABLE polls ADD COLUMN IF NOT EXISTS seq BIGINT GENERATED ALWAYS AS IDENTITY;
+
+-- 마감 시각 (없을 수 있음). 마감 여부는 읽을 때 판단한다 (ADR-0002).
+ALTER TABLE polls ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ;

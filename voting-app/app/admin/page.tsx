@@ -2,11 +2,13 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
 import { ClosedBadge } from "../closed-badge";
+import { DeadlineLabel } from "../deadline-label";
 import { logOutAction } from "./actions";
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
   const polls = await getPollService().listPolls();
+  const now = new Date();
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +36,10 @@ export default async function AdminDashboardPage() {
                 href={`/admin/polls/${poll.id}`}
                 className="flex items-baseline justify-between gap-3 rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
               >
-                <span>{poll.question}</span>
+                <span className="flex flex-col gap-0.5">
+                  <span>{poll.question}</span>
+                  <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={now} />
+                </span>
                 <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums text-zinc-500">
                   {poll.closed && <ClosedBadge />}
                   {poll.totalVotes}표

@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
 import { ClosedBadge } from "../../../closed-badge";
+import { DeadlineLabel } from "../../../deadline-label";
 import { ResultsView } from "../../../results-view";
 import { closePollAction, deletePollAction } from "../../actions";
 import { ConfirmButton } from "../../confirm-button";
@@ -45,6 +46,7 @@ export default async function AdminPollPage({
         <h1 className="text-xl font-semibold">{poll.question}</h1>
         {poll.closed && <ClosedBadge />}
       </div>
+      <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={new Date()} />
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium">공유 링크</span>
         <input

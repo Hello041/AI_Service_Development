@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getPollService } from "@/lib/db";
 import { getVoterId } from "@/lib/voter";
+import { DeadlineLabel } from "../../deadline-label";
 import { ResultsView } from "../../results-view";
 import { VoteForm } from "./vote-form";
 
@@ -22,7 +23,10 @@ export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-xl font-semibold">{poll.question}</h1>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-xl font-semibold">{poll.question}</h1>
+        <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={new Date()} />
+      </div>
       {poll.results ? (
         <>
           <p className="rounded-lg bg-black/5 px-4 py-3 text-sm dark:bg-white/10">

@@ -14,4 +14,5 @@ export const createPollErrorMessages: Record<CreatePollError, string> = {
   option_empty: "비어 있는 선택지가 있습니다.",
   option_too_long: `선택지는 ${MAX_OPTION_LENGTH}자까지 입력할 수 있습니다.`,
   duplicate_options: "같은 내용의 선택지가 있습니다.",
+  deadline_not_in_future: "마감 시각은 지금보다 뒤여야 합니다.",
 };

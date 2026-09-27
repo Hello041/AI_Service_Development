@@ -3,9 +3,15 @@ import { createPollService, type PollService } from "./polls";
 import { createTestQuery } from "./test-db";
 
 let polls: PollService;
+// 테스트가 옮길 수 있는 "지금"
+let now: Date;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
+const later = (ms: number) => new Date(now.getTime() + ms);
 
 beforeEach(async () => {
-  polls = createPollService(await createTestQuery());
+  now = new Date(Date.UTC(2026, 8, 30, 9, 0));
+  polls = createPollService(await createTestQuery(), () => now);
 });
 
 describe("투표 만들기", () => {
@@ -335,5 +341,95 @@ describe("결과의 1위", () => {
     const view = await polls.getPollForAdmin(poll.id);
 
     expect(view?.results.options.map((o) => o.isLeader)).toEqual([false, false]);
+  });
+});
+
+describe("마감 시각", () => {
+  async function createPollWithDeadline(deadline: Date | null, question = "질문") {
+    const created = await polls.createPoll(question, ["A", "B"], { deadline });
+    if (!created.ok) throw new Error(created.error);
+    const poll = await polls.getPoll(created.id);
+    if (!poll) throw new Error("만든 투표를 찾을 수 없음");
+    return poll;
+  }
+
+  test("마감 시각을 정해 만든 투표는 그 시각을 가진다", async () => {
+    const poll = await createPollWithDeadline(later(HOUR));
+    expect(poll.deadline).toEqual(later(HOUR));
+    expect(poll.closed).toBe(false);
+  });
+
+  test("마감 시각 없이 만들 수 있다", async () => {
+    const poll = await createPollWithDeadline(null);
+    expect(poll.deadline).toBeNull();
+  });
+
+  test("지금이나 과거를 마감 시각으로 만들면 거부한다", async () => {
+    for (const deadline of [now, later(-MINUTE)]) {
+      expect(await polls.createPoll("질문", ["A", "B"], { deadline })).toEqual({
+        ok: false,
+        error: "deadline_not_in_future",
+      });
+    }
+  });
+
+  test("마감 시각 1분 전에는 표를 받고, 마감 시각이 되면 거부한다", async () => {
+    const poll = await createPollWithDeadline(later(HOUR));
+    const deadline = later(HOUR);
+
+    now = new Date(deadline.getTime() - MINUTE);
+    expect(await polls.castVote(poll.id, poll.options[0].id, "v1")).toEqual({ ok: true });
+
+    now = deadline;
+    expect(await polls.castVote(poll.id, poll.options[1].id, "v2")).toEqual({
+      ok: false,
+      error: "poll_closed",
+    });
+  });
+
+  test("마감 시각이 지나면 마감으로 보이고 표를 던지지 않은 참여자도 결과를 본다", async () => {
+    const poll = await createPollWithDeadline(later(HOUR));
+    await polls.castVote(poll.id, poll.options[0].id, "v1");
+
+    now = later(HOUR + MINUTE);
+    const view = await polls.getPollForVoter(poll.id, null);
+
+    expect(view?.closed).toBe(true);
+    expect(view?.results?.totalVotes).toBe(1);
+    expect((await polls.listPolls())[0].closed).toBe(true);
+  });
+
+  test("마감 시각 전이라도 운영자가 마감하면 마감이다", async () => {
+    const poll = await createPollWithDeadline(later(HOUR));
+
+    await polls.closePoll(poll.id);
+
+    expect((await polls.getPoll(poll.id))?.closed).toBe(true);
+    expect(await polls.castVote(poll.id, poll.options[0].id, "v1")).toEqual({
+      ok: false,
+      error: "poll_closed",
+    });
+  });
+
+  test("목록: 마감 시각이 가까운 순 → 마감 시각 없는 진행 중 최신순 → 마감됨 최신순", async () => {
+    await createPollWithDeadline(later(3 * HOUR), "3시간 뒤");
+    await createPollWithDeadline(null, "기한 없음 1");
+    const closed = await createPollWithDeadline(later(5 * HOUR), "운영자가 마감");
+    await createPollWithDeadline(later(HOUR), "1시간 뒤");
+    await createPollWithDeadline(null, "기한 없음 2");
+    await createPollWithDeadline(later(2 * MINUTE), "곧 지남");
+    await polls.closePoll(closed.id);
+
+    now = later(3 * MINUTE);
+    const list = await polls.listPolls();
+
+    expect(list.map((p) => p.question)).toEqual([
+      "1시간 뒤",
+      "3시간 뒤",
+      "기한 없음 2",
+      "기한 없음 1",
+      "곧 지남",
+      "운영자가 마감",
+    ]);
   });
 });

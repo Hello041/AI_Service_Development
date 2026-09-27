@@ -17,6 +17,7 @@ export type Option = { id: number; text: string };
 export type PollSummary = {
   id: string;
   question: string;
+  deadline: Date | null;
   closed: boolean;
   totalVotes: number;
 };
@@ -24,6 +25,7 @@ export type PollSummary = {
 export type Poll = {
   id: string;
   question: string;
+  deadline: Date | null;
   closed: boolean;
   options: Option[];
 };
@@ -35,7 +37,8 @@ export type CreatePollError =
   | "too_many_options"
   | "option_empty"
   | "option_too_long"
-  | "duplicate_options";
+  | "duplicate_options"
+  | "deadline_not_in_future";
 
 export type CreatePollResult =
   | { ok: true; id: string }
@@ -90,38 +93,54 @@ export type PollService = ReturnType<typeof createPollService>;
 export type Clock = () => Date;
 
 // 투표가 마감되었는지는 여기 한 곳에서만 판단한다 (ADR-0002).
-const closedSql = (poll: string) => `(${poll}.closed_at IS NOT NULL)`;
+// nowParam: 주입된 현재 시각이 담긴 SQL 파라미터 (예: "$2")
+const closedSql = (poll: string, nowParam: string) =>
+  // 마감 시각이 없으면 비교 결과가 NULL이므로 false로 본다 (NOT NULL은 NULL이 되어 행이 빠진다).
+  `(${poll}.closed_at IS NOT NULL OR COALESCE(${poll}.deadline <= ${nowParam}::timestamptz, false))`;
+
+// 드라이버마다 timestamptz를 Date나 문자열로 줄 수 있어 Date로 맞춘다.
+const toDate = (value: Date | string | null) => (value === null ? null : new Date(value));
 
 export function createPollService(query: Query, now: Clock = () => new Date()) {
   async function createPoll(
     rawQuestion: string,
     rawOptions: string[],
+    settings: { deadline?: Date | null } = {},
   ): Promise<CreatePollResult> {
     const question = rawQuestion.trim();
     const options = rawOptions.map((o) => o.trim());
+    const deadline = settings.deadline ?? null;
     const error = validatePoll(question, options);
     if (error) return { ok: false, error };
+    if (deadline && deadline <= now()) return { ok: false, error: "deadline_not_in_future" };
 
     const id = randomBytes(9).toString("base64url");
     // 투표와 선택지를 한 문장으로 넣어 중간 상태가 남지 않게 한다.
     await query(
       `WITH poll AS (
-         INSERT INTO polls (id, question) VALUES ($1, $2) RETURNING id
+         INSERT INTO polls (id, question, deadline) VALUES ($1, $2, $4) RETURNING id
        )
        INSERT INTO options (poll_id, position, text)
        SELECT poll.id, t.position, t.text
        FROM poll, unnest($3::text[]) WITH ORDINALITY AS t(text, position)`,
-      [id, question, options],
+      [id, question, options, deadline],
     );
     return { ok: true, id };
   }
 
   async function getPoll(id: string): Promise<Poll | null> {
-    const [poll] = await query<{ id: string; question: string; closed: boolean }>(
-      `SELECT p.id, p.question, ${closedSql("p")} AS closed FROM polls p WHERE p.id = $1`,
-      [id],
+    const [row] = await query<{
+      id: string;
+      question: string;
+      deadline: Date | string | null;
+      closed: boolean;
+    }>(
+      `SELECT p.id, p.question, p.deadline, ${closedSql("p", "$2")} AS closed
+       FROM polls p WHERE p.id = $1`,
+      [id, now()],
     );
-    if (!poll) return null;
+    if (!row) return null;
+    const poll = { ...row, deadline: toDate(row.deadline) };
     const options = await query<Option>(
       `SELECT id, text FROM options WHERE poll_id = $1 ORDER BY position`,
       [id],
@@ -129,13 +148,18 @@ export function createPollService(query: Query, now: Clock = () => new Date()) {
     return { ...poll, options };
   }
 
+  // 진행 중: 마감 시각 가까운 순 → 마감 시각 없음 최신순. 그다음 마감됨 최신순.
   async function listPolls(): Promise<PollSummary[]> {
-    return query<PollSummary>(
-      `SELECT p.id, p.question, ${closedSql("p")} AS closed,
+    const rows = await query<Omit<PollSummary, "deadline"> & { deadline: Date | string | null }>(
+      `SELECT p.id, p.question, p.deadline, ${closedSql("p", "$1")} AS closed,
               (SELECT count(*)::int FROM votes v WHERE v.poll_id = p.id) AS "totalVotes"
        FROM polls p
-       ORDER BY ${closedSql("p")}, p.created_at DESC, p.seq DESC`,
+       ORDER BY ${closedSql("p", "$1")},
+                CASE WHEN NOT ${closedSql("p", "$1")} THEN p.deadline END ASC NULLS LAST,
+                p.created_at DESC, p.seq DESC`,
+      [now()],
     );
+    return rows.map((r) => ({ ...r, deadline: toDate(r.deadline) }));
   }
 
   async function castVote(
@@ -152,16 +176,16 @@ export function createPollService(query: Query, now: Clock = () => new Date()) {
       `INSERT INTO votes (poll_id, option_id, voter_id)
        SELECT o.poll_id, o.id, $3
        FROM options o JOIN polls p ON p.id = o.poll_id
-       WHERE o.id = $2 AND o.poll_id = $1 AND NOT ${closedSql("p")}
+       WHERE o.id = $2 AND o.poll_id = $1 AND NOT ${closedSql("p", "$4")}
        ON CONFLICT (poll_id, voter_id) DO NOTHING
        RETURNING id`,
-      [pollId, optionId, voterId],
+      [pollId, optionId, voterId, now()],
     );
     if (inserted.length > 0) return { ok: true };
 
     const [poll] = await query<{ closed: boolean }>(
-      `SELECT ${closedSql("p")} AS closed FROM polls p WHERE p.id = $1`,
-      [pollId],
+      `SELECT ${closedSql("p", "$2")} AS closed FROM polls p WHERE p.id = $1`,
+      [pollId, now()],
     );
     if (!poll) return { ok: false, error: "poll_not_found" };
     if (poll.closed) return { ok: false, error: "poll_closed" };
