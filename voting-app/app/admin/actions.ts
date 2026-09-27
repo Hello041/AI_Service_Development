@@ -39,3 +39,9 @@ export async function createPollAction(
   if (!result.ok) return { error: createPollErrorMessages[result.error] };
   redirect(`/admin/polls/${result.id}?created=1`);
 }
+
+export async function closePollAction(pollId: string): Promise<void> {
+  await requireAdmin();
+  await getPollService().closePoll(pollId);
+  redirect(`/admin/polls/${pollId}`);
+}

@@ -210,3 +210,57 @@ describe("결과", () => {
     ]);
   });
 });
+
+describe("마감", () => {
+  test("마감된 투표에 던진 표는 거부하고, 기존 결과는 남는다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    await polls.castVote(poll.id, poll.options[0].id, "v1");
+
+    await polls.closePoll(poll.id);
+    const late = await polls.castVote(poll.id, poll.options[1].id, "v2");
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(late).toEqual({ ok: false, error: "poll_closed" });
+    expect(view?.closed).toBe(true);
+    expect(view?.results.options.map((o) => o.votes)).toEqual([1, 0]);
+  });
+
+  test("마감되면 표를 던지지 않은 참여자도 결과를 본다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    await polls.castVote(poll.id, poll.options[0].id, "v1");
+
+    await polls.closePoll(poll.id);
+    const view = await polls.getPollForVoter(poll.id, null);
+
+    expect(view?.closed).toBe(true);
+    expect(view?.myOptionId).toBeNull();
+    expect(view?.results?.totalVotes).toBe(1);
+  });
+
+  test("이미 마감된 투표를 다시 마감해도 마감 상태 그대로다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+
+    await polls.closePoll(poll.id);
+    await polls.closePoll(poll.id);
+
+    expect((await polls.getPoll(poll.id))?.closed).toBe(true);
+  });
+
+  test("목록은 진행 중인 투표가 먼저, 마감된 투표가 나중이며 각각 최신순이다", async () => {
+    await createPoll("오래된 진행", ["A", "B"]);
+    const oldClosed = await createPoll("오래된 마감", ["A", "B"]);
+    await createPoll("최근 진행", ["A", "B"]);
+    const newClosed = await createPoll("최근 마감", ["A", "B"]);
+    await polls.closePoll(oldClosed.id);
+    await polls.closePoll(newClosed.id);
+
+    const list = await polls.listPolls();
+
+    expect(list.map((p) => [p.question, p.closed])).toEqual([
+      ["최근 진행", false],
+      ["오래된 진행", false],
+      ["최근 마감", true],
+      ["오래된 마감", true],
+    ]);
+  });
+});

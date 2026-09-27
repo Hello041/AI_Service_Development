@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+﻿import { randomBytes } from "node:crypto";
 import {
   MAX_OPTION_LENGTH,
   MAX_OPTIONS,
@@ -14,11 +14,17 @@ export type Query = <T = Record<string, unknown>>(
 
 export type Option = { id: number; text: string };
 
-export type PollSummary = { id: string; question: string; totalVotes: number };
+export type PollSummary = {
+  id: string;
+  question: string;
+  closed: boolean;
+  totalVotes: number;
+};
 
 export type Poll = {
   id: string;
   question: string;
+  closed: boolean;
   options: Option[];
 };
 
@@ -61,11 +67,15 @@ export type VoterPollView = Poll & {
 
 export type AdminPollView = Poll & { results: Results };
 
-export type CastVoteError = "poll_not_found" | "option_not_in_poll" | "already_voted";
+export type CastVoteError =
+  | "poll_not_found"
+  | "poll_closed"
+  | "option_not_in_poll"
+  | "already_voted";
 
 export type CastVoteResult = { ok: true } | { ok: false; error: CastVoteError };
 
-export type PollService =ReturnType<typeof createPollService>;
+export type PollService = ReturnType<typeof createPollService>;
 
 export function createPollService(query: Query) {
   async function createPoll(
@@ -92,8 +102,8 @@ export function createPollService(query: Query) {
   }
 
   async function getPoll(id: string): Promise<Poll | null> {
-    const [poll] = await query<{ id: string; question: string }>(
-      `SELECT id, question FROM polls WHERE id = $1`,
+    const [poll] = await query<{ id: string; question: string; closed: boolean }>(
+      `SELECT id, question, closed_at IS NOT NULL AS closed FROM polls WHERE id = $1`,
       [id],
     );
     if (!poll) return null;
@@ -106,10 +116,10 @@ export function createPollService(query: Query) {
 
   async function listPolls(): Promise<PollSummary[]> {
     return query<PollSummary>(
-      `SELECT p.id, p.question,
+      `SELECT p.id, p.question, p.closed_at IS NOT NULL AS closed,
               (SELECT count(*)::int FROM votes v WHERE v.poll_id = p.id) AS "totalVotes"
        FROM polls p
-       ORDER BY p.created_at DESC`,
+       ORDER BY p.closed_at IS NOT NULL, p.created_at DESC`,
     );
   }
 
@@ -121,15 +131,21 @@ export function createPollService(query: Query) {
     // 조건을 만족할 때만 들어가도록 한 문장으로 넣고, 안 들어갔으면 이유를 따로 가려낸다.
     const inserted = await query(
       `INSERT INTO votes (poll_id, option_id, voter_id)
-       SELECT poll_id, id, $3 FROM options WHERE id = $2 AND poll_id = $1
+       SELECT o.poll_id, o.id, $3
+       FROM options o JOIN polls p ON p.id = o.poll_id
+       WHERE o.id = $2 AND o.poll_id = $1 AND p.closed_at IS NULL
        ON CONFLICT (poll_id, voter_id) DO NOTHING
        RETURNING id`,
       [pollId, optionId, voterId],
     );
     if (inserted.length > 0) return { ok: true };
 
-    const [poll] = await query(`SELECT 1 FROM polls WHERE id = $1`, [pollId]);
+    const [poll] = await query<{ closed: boolean }>(
+      `SELECT closed_at IS NOT NULL AS closed FROM polls WHERE id = $1`,
+      [pollId],
+    );
     if (!poll) return { ok: false, error: "poll_not_found" };
+    if (poll.closed) return { ok: false, error: "poll_closed" };
     const [option] = await query(
       `SELECT 1 FROM options WHERE id = $1 AND poll_id = $2`,
       [optionId, pollId],
@@ -173,7 +189,8 @@ export function createPollService(query: Query) {
     return {
       ...poll,
       myOptionId,
-      results: myOptionId !== null ? await getResults(pollId) : null,
+      // 결과 공개 조건: 표를 던졌거나 투표가 마감됨
+      results: myOptionId !== null || poll.closed ? await getResults(pollId) : null,
     };
   }
 
@@ -183,8 +200,17 @@ export function createPollService(query: Query) {
     return { ...poll, results: await getResults(pollId) };
   }
 
+  // 마감은 되돌릴 수 없고, 이미 마감된 투표는 그대로 둔다.
+  async function closePoll(pollId: string): Promise<void> {
+    await query(
+      `UPDATE polls SET closed_at = now() WHERE id = $1 AND closed_at IS NULL`,
+      [pollId],
+    );
+  }
+
   return {
     createPoll,
+    closePoll,
     getPoll,
     listPolls,
     castVote,

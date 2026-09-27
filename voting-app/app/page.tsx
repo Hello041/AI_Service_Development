@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { getPollService } from "@/lib/db";
+import { ClosedBadge } from "./closed-badge";
 
 export default async function Home() {
   await connection();
@@ -17,9 +18,12 @@ export default async function Home() {
             <li key={poll.id}>
               <Link
                 href={`/polls/${poll.id}`}
-                className="block rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+                className="flex items-center justify-between gap-3 rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
               >
-                {poll.question}
+                <span className={poll.closed ? "text-zinc-500" : undefined}>
+                  {poll.question}
+                </span>
+                {poll.closed && <ClosedBadge />}
               </Link>
             </li>
           ))}

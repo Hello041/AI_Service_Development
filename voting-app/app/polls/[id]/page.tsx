@@ -26,7 +26,7 @@ export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
       {poll.results ? (
         <>
           <p className="rounded-lg bg-black/5 px-4 py-3 text-sm dark:bg-white/10">
-            이미 참여한 투표입니다.
+            {poll.closed ? "마감된 투표입니다." : "이미 참여한 투표입니다."}
           </p>
           <ResultsView results={poll.results} myOptionId={poll.myOptionId} />
         </>

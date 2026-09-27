@@ -2,7 +2,10 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
+import { ClosedBadge } from "../../../closed-badge";
 import { ResultsView } from "../../../results-view";
+import { closePollAction } from "../../actions";
+import { ConfirmButton } from "../../confirm-button";
 
 export default async function AdminPollPage({
   params,
@@ -38,7 +41,10 @@ export default async function AdminPollPage({
           투표를 만들었습니다. 아래 링크를 단톡방에 공유하세요.
         </p>
       )}
-      <h1 className="text-xl font-semibold">{poll.question}</h1>
+      <div className="flex items-start justify-between gap-3">
+        <h1 className="text-xl font-semibold">{poll.question}</h1>
+        {poll.closed && <ClosedBadge />}
+      </div>
       <div className="flex flex-col gap-1">
         <span className="text-sm font-medium">공유 링크</span>
         <input
@@ -49,6 +55,16 @@ export default async function AdminPollPage({
         />
       </div>
       <ResultsView results={poll.results} />
+      {!poll.closed && (
+        <form action={closePollAction.bind(null, poll.id)}>
+          <ConfirmButton
+            message="마감하면 더 이상 표를 받지 않으며, 되돌릴 수 없습니다. 마감할까요?"
+            className="w-full rounded-lg border border-black/15 px-4 py-2 font-medium disabled:opacity-50 dark:border-white/20"
+          >
+            투표 마감
+          </ConfirmButton>
+        </form>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
+import { ClosedBadge } from "../closed-badge";
 import { logOutAction } from "./actions";
 
 export default async function AdminDashboardPage() {
@@ -34,7 +35,8 @@ export default async function AdminDashboardPage() {
                 className="flex items-baseline justify-between gap-3 rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
               >
                 <span>{poll.question}</span>
-                <span className="shrink-0 text-sm tabular-nums text-zinc-500">
+                <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums text-zinc-500">
+                  {poll.closed && <ClosedBadge />}
                   {poll.totalVotes}표
                 </span>
               </Link>

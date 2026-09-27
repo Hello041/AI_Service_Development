@@ -1,4 +1,4 @@
-"use server";
+﻿"use server";
 
 import { redirect } from "next/navigation";
 import { getPollService } from "@/lib/db";
@@ -9,6 +9,7 @@ export type VoteState = { error?: string };
 
 const castVoteErrorMessages: Record<CastVoteError, string> = {
   poll_not_found: "없는 투표입니다. 삭제되었을 수 있습니다.",
+  poll_closed: "마감된 투표입니다. 새로고침하면 결과를 볼 수 있습니다.",
   option_not_in_poll: "선택지를 다시 골라 주세요.",
   already_voted: "이미 이 투표에 참여했습니다.",
 };
