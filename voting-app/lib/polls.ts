@@ -79,7 +79,13 @@ export type CastVoteResult = { ok: true } | { ok: false; error: CastVoteError };
 
 export type PollService = ReturnType<typeof createPollService>;
 
-export function createPollService(query: Query) {
+// 현재 시각. 운영에서는 실제 시계, 테스트에서는 고정 시각이 주입된다.
+export type Clock = () => Date;
+
+// 투표가 마감되었는지는 여기 한 곳에서만 판단한다 (ADR-0002).
+const closedSql = (poll: string) => `(${poll}.closed_at IS NOT NULL)`;
+
+export function createPollService(query: Query, now: Clock = () => new Date()) {
   async function createPoll(
     rawQuestion: string,
     rawOptions: string[],
@@ -105,7 +111,7 @@ export function createPollService(query: Query) {
 
   async function getPoll(id: string): Promise<Poll | null> {
     const [poll] = await query<{ id: string; question: string; closed: boolean }>(
-      `SELECT id, question, closed_at IS NOT NULL AS closed FROM polls WHERE id = $1`,
+      `SELECT p.id, p.question, ${closedSql("p")} AS closed FROM polls p WHERE p.id = $1`,
       [id],
     );
     if (!poll) return null;
@@ -118,10 +124,10 @@ export function createPollService(query: Query) {
 
   async function listPolls(): Promise<PollSummary[]> {
     return query<PollSummary>(
-      `SELECT p.id, p.question, p.closed_at IS NOT NULL AS closed,
+      `SELECT p.id, p.question, ${closedSql("p")} AS closed,
               (SELECT count(*)::int FROM votes v WHERE v.poll_id = p.id) AS "totalVotes"
        FROM polls p
-       ORDER BY p.closed_at IS NOT NULL, p.created_at DESC`,
+       ORDER BY ${closedSql("p")}, p.created_at DESC, p.seq DESC`,
     );
   }
 
@@ -139,7 +145,7 @@ export function createPollService(query: Query) {
       `INSERT INTO votes (poll_id, option_id, voter_id)
        SELECT o.poll_id, o.id, $3
        FROM options o JOIN polls p ON p.id = o.poll_id
-       WHERE o.id = $2 AND o.poll_id = $1 AND p.closed_at IS NULL
+       WHERE o.id = $2 AND o.poll_id = $1 AND NOT ${closedSql("p")}
        ON CONFLICT (poll_id, voter_id) DO NOTHING
        RETURNING id`,
       [pollId, optionId, voterId],
@@ -147,7 +153,7 @@ export function createPollService(query: Query) {
     if (inserted.length > 0) return { ok: true };
 
     const [poll] = await query<{ closed: boolean }>(
-      `SELECT closed_at IS NOT NULL AS closed FROM polls WHERE id = $1`,
+      `SELECT ${closedSql("p")} AS closed FROM polls p WHERE p.id = $1`,
       [pollId],
     );
     if (!poll) return { ok: false, error: "poll_not_found" };
@@ -209,8 +215,8 @@ export function createPollService(query: Query) {
   // 마감은 되돌릴 수 없고, 이미 마감된 투표는 그대로 둔다.
   async function closePoll(pollId: string): Promise<void> {
     await query(
-      `UPDATE polls SET closed_at = now() WHERE id = $1 AND closed_at IS NULL`,
-      [pollId],
+      `UPDATE polls SET closed_at = $2 WHERE id = $1 AND closed_at IS NULL`,
+      [pollId, now()],
     );
   }
 

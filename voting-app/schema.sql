@@ -24,3 +24,6 @@ CREATE TABLE IF NOT EXISTS votes (
   -- 한 참여자는 한 투표에 한 표만 (ADR-0001). 동시 제출도 여기서 막힌다.
   UNIQUE (poll_id, voter_id)
 );
+
+-- 같은 시각에 만든 투표의 순서를 정하기 위한 만든 순서 번호. 기존 행에도 채워진다.
+ALTER TABLE polls ADD COLUMN IF NOT EXISTS seq BIGINT GENERATED ALWAYS AS IDENTITY;
