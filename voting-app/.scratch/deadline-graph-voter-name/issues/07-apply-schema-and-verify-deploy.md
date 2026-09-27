@@ -8,7 +8,11 @@
 
 **Status:** ready-for-human
 
-- [ ] `npm run db:schema`로 배포 DB(Neon `production`)에 바뀐 스키마 적용 (로컬 DB가 다르면 로컬에도)
+- [x] `npm run db:schema`로 배포 DB(Neon `production`)에 바뀐 스키마 적용 (로컬 DB가 다르면 로컬에도)
 - [ ] main에 push해 Vercel 재배포
 - [ ] 배포 사이트에서 이름 입력 → 헤더 표시 → 마감 시각 있는 기명 투표 만들기 → 휴대폰으로 표 던지기 → 그래프 확인 → 운영자 화면 이름 목록 확인
 - [ ] 마감 시각 변경과 자동 마감 확인
+
+## Comments
+
+2026-09-28: `npm run db:schema`로 Neon `production` 브랜치(로컬과 배포가 함께 씀)에 적용. `polls.seq`, `polls.deadline`, `polls.named`, `votes.voter_name` 생성 확인. 실제 DB에서 기명 투표·이름 목록·1위·마감 시각 변경·자동 마감 흐름을 임시 테스트로 확인하고 데이터는 지움.
