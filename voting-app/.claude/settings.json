@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(New-Item -ItemType Directory -Force docs/agents | Out-Null; $s='.claude/skills/setup-matt-pocock-skills'; Copy-Item \"$s/issue-tracker-local.md\" docs/agents/issue-tracker.md; Copy-Item \"$s/triage-labels.md\" docs/agents/triage-labels.md; Copy-Item \"$s/domain.md\" docs/agents/domain.md; Get-ChildItem docs/agents -Name)"
+    ]
+  }
+}
