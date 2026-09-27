@@ -57,7 +57,14 @@ function validatePoll(question: string, options: string[]): CreatePollError | nu
   return null;
 }
 
-export type OptionResult = { id: number; text: string; votes: number; percent: number };
+export type OptionResult = {
+  id: number;
+  text: string;
+  votes: number;
+  percent: number;
+  // 표 수가 최댓값인 선택지. 동점이면 모두, 총 0표면 없음.
+  isLeader: boolean;
+};
 
 export type Results = { totalVotes: number; options: OptionResult[] };
 
@@ -176,11 +183,13 @@ export function createPollService(query: Query, now: Clock = () => new Date()) {
       [pollId],
     );
     const totalVotes = rows.reduce((sum, r) => sum + r.votes, 0);
+    const topVotes = Math.max(0, ...rows.map((r) => r.votes));
     return {
       totalVotes,
       options: rows.map((r) => ({
         ...r,
         percent: totalVotes === 0 ? 0 : Math.round((r.votes / totalVotes) * 100),
+        isLeader: topVotes > 0 && r.votes === topVotes,
       })),
     };
   }

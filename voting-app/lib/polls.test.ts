@@ -106,8 +106,8 @@ describe("표 던지기", () => {
     expect(view?.results).toEqual({
       totalVotes: 1,
       options: [
-        { id: meat.id, text: "고기집", votes: 0, percent: 0 },
-        { id: fish.id, text: "횟집", votes: 1, percent: 100 },
+        { id: meat.id, text: "고기집", votes: 0, percent: 0, isLeader: false },
+        { id: fish.id, text: "횟집", votes: 1, percent: 100, isLeader: true },
       ],
     });
   });
@@ -187,9 +187,9 @@ describe("결과", () => {
     expect(view?.results).toEqual({
       totalVotes: 3,
       options: [
-        { id: a.id, text: "A", votes: 0, percent: 0 },
-        { id: b.id, text: "B", votes: 1, percent: 33 },
-        { id: c.id, text: "C", votes: 2, percent: 67 },
+        { id: a.id, text: "A", votes: 0, percent: 0, isLeader: false },
+        { id: b.id, text: "B", votes: 1, percent: 33, isLeader: false },
+        { id: c.id, text: "C", votes: 2, percent: 67, isLeader: true },
       ],
     });
   });
@@ -302,5 +302,38 @@ describe("삭제", () => {
 
     expect((await polls.getPollForAdmin(kept.id))?.results.options.map((o) => o.votes)).toEqual([0, 1]);
     expect((await polls.getPollForVoter(kept.id, "v1"))?.myOptionId).toBe(kept.options[1].id);
+  });
+});
+
+describe("결과의 1위", () => {
+  test("표를 가장 많이 받은 선택지만 1위다", async () => {
+    const poll = await createPoll("질문", ["A", "B", "C"]);
+    const [, b, c] = poll.options;
+    await polls.castVote(poll.id, b.id, "v1");
+    await polls.castVote(poll.id, b.id, "v2");
+    await polls.castVote(poll.id, c.id, "v3");
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.results.options.map((o) => o.isLeader)).toEqual([false, true, false]);
+  });
+
+  test("1위가 동점이면 모두 1위다", async () => {
+    const poll = await createPoll("질문", ["A", "B", "C"]);
+    const [a, , c] = poll.options;
+    await polls.castVote(poll.id, a.id, "v1");
+    await polls.castVote(poll.id, c.id, "v2");
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.results.options.map((o) => o.isLeader)).toEqual([true, false, true]);
+  });
+
+  test("표가 하나도 없으면 1위가 없다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.results.options.map((o) => o.isLeader)).toEqual([false, false]);
   });
 });
