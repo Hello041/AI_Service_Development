@@ -1,8 +1,11 @@
+import Link from "next/link";
 import { requireAdmin } from "@/lib/admin-session";
+import { getPollService } from "@/lib/db";
 import { logOutAction } from "./actions";
 
 export default async function AdminDashboardPage() {
   await requireAdmin();
+  const polls = await getPollService().listPolls();
 
   return (
     <div className="flex flex-col gap-6">
@@ -14,7 +17,28 @@ export default async function AdminDashboardPage() {
           </button>
         </form>
       </div>
-      <p className="text-zinc-500">아직 투표가 없습니다.</p>
+      <Link
+        href="/admin/polls/new"
+        className="rounded-lg bg-foreground px-4 py-2 text-center font-medium text-background"
+      >
+        새 투표 만들기
+      </Link>
+      {polls.length === 0 ? (
+        <p className="text-zinc-500">아직 투표가 없습니다.</p>
+      ) : (
+        <ul className="flex flex-col gap-2">
+          {polls.map((poll) => (
+            <li key={poll.id}>
+              <Link
+                href={`/admin/polls/${poll.id}`}
+                className="block rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+              >
+                {poll.question}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
