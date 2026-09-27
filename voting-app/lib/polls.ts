@@ -1,4 +1,4 @@
-﻿import { randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   MAX_OPTION_LENGTH,
   MAX_OPTIONS,
@@ -40,6 +40,8 @@ export type CreatePollError =
 export type CreatePollResult =
   | { ok: true; id: string }
   | { ok: false; error: CreatePollError };
+
+const MAX_OPTION_ID = 2_147_483_647; // Postgres INTEGER 최댓값
 
 // 이모지 등이 2글자로 세어지지 않도록 코드 포인트 단위로 센다.
 const length = (s: string) => [...s].length;
@@ -128,6 +130,10 @@ export function createPollService(query: Query) {
     optionId: number,
     voterId: string,
   ): Promise<CastVoteResult> {
+    // 선택지 id 컬럼(INTEGER) 범위 밖의 값은 DB에 보내면 예외가 나므로 먼저 거른다.
+    if (!Number.isInteger(optionId) || optionId <= 0 || optionId > MAX_OPTION_ID) {
+      return { ok: false, error: "option_not_in_poll" };
+    }
     // 조건을 만족할 때만 들어가도록 한 문장으로 넣고, 안 들어갔으면 이유를 따로 가려낸다.
     const inserted = await query(
       `INSERT INTO votes (poll_id, option_id, voter_id)

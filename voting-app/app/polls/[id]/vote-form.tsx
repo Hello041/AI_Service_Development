@@ -34,7 +34,7 @@ export function VoteForm({ pollId, options }: { pollId: string; options: Option[
         disabled={pending}
         className="rounded-lg bg-foreground px-4 py-3 font-medium text-background disabled:opacity-50"
       >
-        {pending ? "제출 중…" : "투표하기"}
+        {pending ? "제출 중…" : "표 던지기"}
       </button>
     </form>
   );

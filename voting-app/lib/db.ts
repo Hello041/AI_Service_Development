@@ -1,3 +1,4 @@
+import "server-only";
 import { neon } from "@neondatabase/serverless";
 import { createPollService, type PollService, type Query } from "./polls";
 

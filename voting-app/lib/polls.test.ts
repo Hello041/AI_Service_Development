@@ -155,6 +155,17 @@ describe("표 던지기", () => {
     });
   });
 
+  test("있을 수 없는 선택지 번호로 던진 표는 거부한다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+
+    for (const optionId of [99_999_999_999, 0, -1, 1.5, Number.NaN]) {
+      expect(await polls.castVote(poll.id, optionId, "voter-a")).toEqual({
+        ok: false,
+        error: "option_not_in_poll",
+      });
+    }
+  });
+
   test("없는 투표에 던진 표는 거부한다", async () => {
     expect(await polls.castVote("no-such-poll", 1, "voter-a")).toEqual({
       ok: false,
