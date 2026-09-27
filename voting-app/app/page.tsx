@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { connection } from "next/server";
 import { getPollService } from "@/lib/db";
+import { requireVoterName } from "@/lib/voter";
 import { ClosedBadge } from "./closed-badge";
 import { DeadlineLabel } from "./deadline-label";
 
 export default async function Home() {
   await connection();
+  await requireVoterName("/");
   const polls = await getPollService().listPolls();
   const now = new Date();
 

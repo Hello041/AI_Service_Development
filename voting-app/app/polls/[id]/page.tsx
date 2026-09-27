@@ -1,12 +1,13 @@
 import Link from "next/link";
 import { getPollService } from "@/lib/db";
-import { getVoterId } from "@/lib/voter";
+import { getVoterId, requireVoterName } from "@/lib/voter";
 import { DeadlineLabel } from "../../deadline-label";
 import { ResultsView } from "../../results-view";
 import { VoteForm } from "./vote-form";
 
 export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
   const { id } = await params;
+  await requireVoterName(`/polls/${id}`);
   const poll = await getPollService().getPollForVoter(id, await getVoterId());
 
   if (!poll) {
