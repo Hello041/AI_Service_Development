@@ -99,6 +99,17 @@ export function CreatePollForm({ defaultDeadline }: { defaultDeadline: string })
         </label>
       </fieldset>
 
+      <label className="flex items-start gap-2">
+        <input type="checkbox" name="named" defaultChecked className="mt-1" />
+        <span className="flex flex-col">
+          <span className="text-sm font-medium">기명 투표</span>
+          <span className="text-sm text-zinc-500">
+            켜면 참여자 이름이 표에 남고, 운영자만 누가 무엇을 골랐는지 봅니다. 만든 뒤에는 바꿀 수
+            없습니다.
+          </span>
+        </span>
+      </label>
+
       {state.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400">
           {state.error}

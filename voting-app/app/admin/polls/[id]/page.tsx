@@ -9,6 +9,8 @@ import { closePollAction, deletePollAction } from "../../actions";
 import { ConfirmButton } from "../../confirm-button";
 import { defaultDeadlineInput, toKstInput } from "@/lib/kst-time";
 import { DeadlineEditor } from "./deadline-editor";
+import { VoterNames } from "./voter-names";
+import { NamedBadge } from "../../../named-badge";
 
 export default async function AdminPollPage({
   params,
@@ -46,7 +48,10 @@ export default async function AdminPollPage({
       )}
       <div className="flex items-start justify-between gap-3">
         <h1 className="text-xl font-semibold">{poll.question}</h1>
-        {poll.closed && <ClosedBadge />}
+        <span className="flex shrink-0 items-center gap-2">
+          <NamedBadge named={poll.named} />
+          {poll.closed && <ClosedBadge />}
+        </span>
       </div>
       <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={new Date()} />
       <div className="flex flex-col gap-1">
@@ -59,6 +64,7 @@ export default async function AdminPollPage({
         />
       </div>
       <ResultsView results={poll.results} />
+      <VoterNames poll={poll} />
       {!poll.closed && (
         <DeadlineEditor
           pollId={poll.id}

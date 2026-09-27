@@ -30,3 +30,8 @@ ALTER TABLE polls ADD COLUMN IF NOT EXISTS seq BIGINT GENERATED ALWAYS AS IDENTI
 
 -- 마감 시각 (없을 수 있음). 마감 여부는 읽을 때 판단한다 (ADR-0002).
 ALTER TABLE polls ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ;
+
+-- 기명 투표 여부. 기존 투표는 익명이다 (ADR-0003).
+ALTER TABLE polls ADD COLUMN IF NOT EXISTS named BOOLEAN NOT NULL DEFAULT false;
+-- 기명 투표에서 표를 던진 시점의 참여자 이름. 익명 투표와 기존 표는 비어 있다.
+ALTER TABLE votes ADD COLUMN IF NOT EXISTS voter_name TEXT;

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
 import { ClosedBadge } from "../closed-badge";
 import { DeadlineLabel } from "../deadline-label";
+import { NamedBadge } from "../named-badge";
 import { logOutAction } from "./actions";
 
 export default async function AdminDashboardPage() {
@@ -41,6 +42,7 @@ export default async function AdminDashboardPage() {
                   <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={now} />
                 </span>
                 <span className="flex shrink-0 items-center gap-2 text-sm tabular-nums text-zinc-500">
+                  <NamedBadge named={poll.named} />
                   {poll.closed && <ClosedBadge />}
                   {poll.totalVotes}표
                 </span>

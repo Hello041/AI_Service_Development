@@ -498,3 +498,77 @@ describe("마감 시각 바꾸기", () => {
     });
   });
 });
+
+describe("기명 투표", () => {
+  async function createNamedPoll(named: boolean) {
+    const created = await polls.createPoll("질문", ["A", "B"], { named });
+    if (!created.ok) throw new Error(created.error);
+    const poll = await polls.getPoll(created.id);
+    if (!poll) throw new Error("만든 투표를 찾을 수 없음");
+    return poll;
+  }
+
+  test("기명 여부를 정하지 않고 만든 투표는 익명이다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    expect(poll.named).toBe(false);
+    expect((await polls.listPolls())[0].named).toBe(false);
+  });
+
+  test("운영자는 선택지별로 누가 골랐는지 표를 던진 순서대로 본다", async () => {
+    const poll = await createNamedPoll(true);
+    const [a, b] = poll.options;
+    await polls.castVote(poll.id, b.id, "v1", "지영");
+    await polls.castVote(poll.id, a.id, "v2", "  민수 ");
+    await polls.castVote(poll.id, b.id, "v3", "지영");
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.named).toBe(true);
+    expect(view?.votersByOption).toEqual([
+      { optionId: a.id, names: ["민수"] },
+      { optionId: b.id, names: ["지영", "지영"] },
+    ]);
+  });
+
+  test("참여자 조회에는 다른 참여자의 이름이 없다", async () => {
+    const poll = await createNamedPoll(true);
+    await polls.castVote(poll.id, poll.options[0].id, "v1", "민수");
+
+    const view = await polls.getPollForVoter(poll.id, "v1");
+
+    expect(JSON.stringify(view)).not.toContain("민수");
+  });
+
+  test("기명 투표에 이름 없이 던진 표는 거부한다", async () => {
+    const poll = await createNamedPoll(true);
+
+    for (const name of [null, "", "   "]) {
+      expect(await polls.castVote(poll.id, poll.options[0].id, "v1", name)).toEqual({
+        ok: false,
+        error: "voter_name_required",
+      });
+    }
+    expect((await polls.getPollForAdmin(poll.id))?.results.totalVotes).toBe(0);
+  });
+
+  test("기명 투표에 규칙에 맞지 않는 이름으로 던진 표는 거부한다", async () => {
+    const poll = await createNamedPoll(true);
+
+    expect(await polls.castVote(poll.id, poll.options[0].id, "v1", "가".repeat(21))).toEqual({
+      ok: false,
+      error: "voter_name_too_long",
+    });
+  });
+
+  test("익명 투표는 이름을 받아도 남기지 않는다", async () => {
+    const poll = await createNamedPoll(false);
+
+    expect(await polls.castVote(poll.id, poll.options[0].id, "v1", "민수")).toEqual({ ok: true });
+    expect(await polls.castVote(poll.id, poll.options[1].id, "v2", null)).toEqual({ ok: true });
+
+    const view = await polls.getPollForAdmin(poll.id);
+    expect(view?.named).toBe(false);
+    expect(view?.votersByOption).toBeNull();
+    expect(JSON.stringify(view)).not.toContain("민수");
+  });
+});

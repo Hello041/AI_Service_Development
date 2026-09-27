@@ -43,7 +43,8 @@ export async function createPollAction(
     deadline = parseKstInput(String(formData.get("deadline") ?? ""));
     if (!deadline) return { error: "마감 시각을 날짜와 시각까지 입력해 주세요." };
   }
-  const result = await getPollService().createPoll(question, options, { deadline });
+  const named = formData.get("named") === "on";
+  const result = await getPollService().createPoll(question, options, { deadline, named });
   if (!result.ok) return { error: createPollErrorMessages[result.error] };
   redirect(`/admin/polls/${result.id}?created=1`);
 }

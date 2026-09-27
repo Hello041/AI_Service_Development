@@ -7,7 +7,7 @@ import { VoteForm } from "./vote-form";
 
 export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
   const { id } = await params;
-  await requireVoterName(`/polls/${id}`);
+  const voterName = await requireVoterName(`/polls/${id}`);
   const poll = await getPollService().getPollForVoter(id, await getVoterId());
 
   if (!poll) {
@@ -28,6 +28,11 @@ export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
         <h1 className="text-xl font-semibold">{poll.question}</h1>
         <DeadlineLabel deadline={poll.deadline} closed={poll.closed} now={new Date()} />
       </div>
+      <p className="text-sm text-zinc-500">
+        {poll.named
+          ? `기명 투표입니다. '${voterName}' 이름으로 표가 남고, 누가 무엇을 골랐는지는 운영자만 봅니다.`
+          : "익명 투표입니다. 이름은 표에 남지 않습니다."}
+      </p>
       {poll.results ? (
         <>
           <p className="rounded-lg bg-black/5 px-4 py-3 text-sm dark:bg-white/10">
