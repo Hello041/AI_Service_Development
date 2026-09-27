@@ -16,7 +16,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Link href="/" className="font-semibold">
               동아리 투표
             </Link>
-            {/* 확인용 임시 버튼. 로그인되어 있으면 /admin이 바로 대시보드를 보여준다. */}
+            {/* 로그인되어 있으면 /admin이 바로 대시보드를 보여준다. */}
             <Link
               href="/admin"
               className="rounded-lg border border-black/15 px-3 py-1 text-sm dark:border-white/20"
