@@ -264,3 +264,32 @@ describe("마감", () => {
     ]);
   });
 });
+
+describe("삭제", () => {
+  test("삭제한 투표는 목록과 조회에서 사라지고, 표도 받지 않는다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    await polls.castVote(poll.id, poll.options[0].id, "v1");
+
+    await polls.deletePoll(poll.id);
+
+    expect(await polls.listPolls()).toEqual([]);
+    expect(await polls.getPollForVoter(poll.id, "v1")).toBeNull();
+    expect(await polls.getPollForAdmin(poll.id)).toBeNull();
+    expect(await polls.castVote(poll.id, poll.options[1].id, "v2")).toEqual({
+      ok: false,
+      error: "poll_not_found",
+    });
+  });
+
+  test("다른 투표의 표는 영향을 받지 않는다", async () => {
+    const doomed = await createPoll("삭제할 투표", ["A", "B"]);
+    const kept = await createPoll("남길 투표", ["A", "B"]);
+    await polls.castVote(doomed.id, doomed.options[0].id, "v1");
+    await polls.castVote(kept.id, kept.options[1].id, "v1");
+
+    await polls.deletePoll(doomed.id);
+
+    expect((await polls.getPollForAdmin(kept.id))?.results.options.map((o) => o.votes)).toEqual([0, 1]);
+    expect((await polls.getPollForVoter(kept.id, "v1"))?.myOptionId).toBe(kept.options[1].id);
+  });
+});

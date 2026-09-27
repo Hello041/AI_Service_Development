@@ -45,3 +45,9 @@ export async function closePollAction(pollId: string): Promise<void> {
   await getPollService().closePoll(pollId);
   redirect(`/admin/polls/${pollId}`);
 }
+
+export async function deletePollAction(pollId: string): Promise<void> {
+  await requireAdmin();
+  await getPollService().deletePoll(pollId);
+  redirect("/admin");
+}

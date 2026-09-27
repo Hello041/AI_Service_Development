@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
 import { ClosedBadge } from "../../../closed-badge";
 import { ResultsView } from "../../../results-view";
-import { closePollAction } from "../../actions";
+import { closePollAction, deletePollAction } from "../../actions";
 import { ConfirmButton } from "../../confirm-button";
 
 export default async function AdminPollPage({
@@ -65,6 +65,14 @@ export default async function AdminPollPage({
           </ConfirmButton>
         </form>
       )}
+      <form action={deletePollAction.bind(null, poll.id)}>
+        <ConfirmButton
+          message={`이 투표를 삭제하면 표 ${poll.results.totalVotes}개도 함께 삭제되며, 되돌릴 수 없습니다. 삭제할까요?`}
+          className="w-full rounded-lg px-4 py-2 font-medium text-red-600 disabled:opacity-50 dark:text-red-400"
+        >
+          투표 삭제
+        </ConfirmButton>
+      </form>
     </div>
   );
 }

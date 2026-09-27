@@ -208,9 +208,15 @@ export function createPollService(query: Query) {
     );
   }
 
+  // 선택지와 표는 외래 키의 ON DELETE CASCADE로 함께 지워진다.
+  async function deletePoll(pollId: string): Promise<void> {
+    await query(`DELETE FROM polls WHERE id = $1`, [pollId]);
+  }
+
   return {
     createPoll,
     closePoll,
+    deletePoll,
     getPoll,
     listPolls,
     castVote,
