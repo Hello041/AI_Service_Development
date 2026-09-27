@@ -85,6 +85,10 @@ export type CastVoteError =
   | "option_not_in_poll"
   | "already_voted";
 
+export type SetDeadlineError = "poll_not_found" | "poll_closed" | "deadline_not_in_future";
+
+export type SetDeadlineResult = { ok: true } | { ok: false; error: SetDeadlineError };
+
 export type CastVoteResult = { ok: true } | { ok: false; error: CastVoteError };
 
 export type PollService = ReturnType<typeof createPollService>;
@@ -253,6 +257,24 @@ export function createPollService(query: Query, now: Clock = () => new Date()) {
     );
   }
 
+  // 진행 중인 투표의 마감 시각을 넣거나 바꾸거나(null이면) 없앤다. 마감된 투표는 바꿀 수 없다.
+  async function setDeadline(
+    pollId: string,
+    deadline: Date | null,
+  ): Promise<SetDeadlineResult> {
+    const current = now();
+    if (deadline && deadline <= current) return { ok: false, error: "deadline_not_in_future" };
+    const updated = await query(
+      `UPDATE polls p SET deadline = $2
+       WHERE p.id = $1 AND NOT ${closedSql("p", "$3")}
+       RETURNING p.id`,
+      [pollId, deadline, current],
+    );
+    if (updated.length > 0) return { ok: true };
+    const [poll] = await query(`SELECT 1 FROM polls WHERE id = $1`, [pollId]);
+    return { ok: false, error: poll ? "poll_closed" : "poll_not_found" };
+  }
+
   // 선택지와 표는 외래 키의 ON DELETE CASCADE로 함께 지워진다.
   async function deletePoll(pollId: string): Promise<void> {
     await query(`DELETE FROM polls WHERE id = $1`, [pollId]);
@@ -261,6 +283,7 @@ export function createPollService(query: Query, now: Clock = () => new Date()) {
   return {
     createPoll,
     closePoll,
+    setDeadline,
     deletePoll,
     getPoll,
     listPolls,

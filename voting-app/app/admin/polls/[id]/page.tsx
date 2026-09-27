@@ -7,6 +7,8 @@ import { DeadlineLabel } from "../../../deadline-label";
 import { ResultsView } from "../../../results-view";
 import { closePollAction, deletePollAction } from "../../actions";
 import { ConfirmButton } from "../../confirm-button";
+import { defaultDeadlineInput, toKstInput } from "@/lib/kst-time";
+import { DeadlineEditor } from "./deadline-editor";
 
 export default async function AdminPollPage({
   params,
@@ -57,6 +59,15 @@ export default async function AdminPollPage({
         />
       </div>
       <ResultsView results={poll.results} />
+      {!poll.closed && (
+        <DeadlineEditor
+          pollId={poll.id}
+          hasDeadline={poll.deadline !== null}
+          initialValue={
+            poll.deadline ? toKstInput(poll.deadline) : defaultDeadlineInput(new Date())
+          }
+        />
+      )}
       {!poll.closed && (
         <form action={closePollAction.bind(null, poll.id)}>
           <ConfirmButton

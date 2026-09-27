@@ -433,3 +433,68 @@ describe("마감 시각", () => {
     ]);
   });
 });
+
+describe("마감 시각 바꾸기", () => {
+  async function createPollWithDeadline(deadline: Date | null) {
+    const created = await polls.createPoll("질문", ["A", "B"], { deadline });
+    if (!created.ok) throw new Error(created.error);
+    return created.id;
+  }
+
+  test("진행 중인 투표의 마감 시각을 넣고, 바꾸고, 없앨 수 있다", async () => {
+    const id = await createPollWithDeadline(null);
+
+    expect(await polls.setDeadline(id, later(HOUR))).toEqual({ ok: true });
+    expect((await polls.getPoll(id))?.deadline).toEqual(later(HOUR));
+
+    expect(await polls.setDeadline(id, later(2 * HOUR))).toEqual({ ok: true });
+    expect((await polls.getPoll(id))?.deadline).toEqual(later(2 * HOUR));
+
+    expect(await polls.setDeadline(id, null)).toEqual({ ok: true });
+    expect((await polls.getPoll(id))?.deadline).toBeNull();
+  });
+
+  test("바꾼 뒤에는 새 마감 시각으로 마감을 판단한다", async () => {
+    const id = await createPollWithDeadline(later(HOUR));
+    await polls.setDeadline(id, later(3 * HOUR));
+
+    now = later(2 * HOUR);
+
+    expect((await polls.getPoll(id))?.closed).toBe(false);
+  });
+
+  test("지금이나 과거로는 바꿀 수 없다", async () => {
+    const id = await createPollWithDeadline(later(HOUR));
+
+    for (const deadline of [now, later(-MINUTE)]) {
+      expect(await polls.setDeadline(id, deadline)).toEqual({
+        ok: false,
+        error: "deadline_not_in_future",
+      });
+    }
+    expect((await polls.getPoll(id))?.deadline).toEqual(later(HOUR));
+  });
+
+  test("마감된 투표의 마감 시각은 바꿀 수 없다", async () => {
+    const manual = await createPollWithDeadline(null);
+    await polls.closePoll(manual);
+    const expired = await createPollWithDeadline(later(HOUR));
+    now = later(2 * HOUR);
+
+    for (const id of [manual, expired]) {
+      expect(await polls.setDeadline(id, later(5 * HOUR))).toEqual({
+        ok: false,
+        error: "poll_closed",
+      });
+      expect(await polls.setDeadline(id, null)).toEqual({ ok: false, error: "poll_closed" });
+    }
+    expect((await polls.getPoll(expired))?.closed).toBe(true);
+  });
+
+  test("없는 투표는 거부한다", async () => {
+    expect(await polls.setDeadline("no-such-poll", later(HOUR))).toEqual({
+      ok: false,
+      error: "poll_not_found",
+    });
+  });
+});
