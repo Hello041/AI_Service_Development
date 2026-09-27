@@ -14,3 +14,13 @@ CREATE TABLE IF NOT EXISTS options (
   text      TEXT NOT NULL,
   UNIQUE (poll_id, position)
 );
+
+CREATE TABLE IF NOT EXISTS votes (
+  id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  poll_id     TEXT NOT NULL REFERENCES polls (id) ON DELETE CASCADE,
+  option_id   INTEGER NOT NULL REFERENCES options (id) ON DELETE CASCADE,
+  voter_id    TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- 한 참여자는 한 투표에 한 표만 (ADR-0001). 동시 제출도 여기서 막힌다.
+  UNIQUE (poll_id, voter_id)
+);

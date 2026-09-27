@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { connection } from "next/server";
 import { getPollService } from "@/lib/db";
+import { getVoterId } from "@/lib/voter";
+import { ResultsView } from "../../results-view";
+import { VoteForm } from "./vote-form";
 
 export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
-  await connection();
   const { id } = await params;
-  const poll = await getPollService().getPoll(id);
+  const poll = await getPollService().getPollForVoter(id, await getVoterId());
 
   if (!poll) {
     return (
@@ -22,16 +23,16 @@ export default async function PollPage({ params }: PageProps<"/polls/[id]">) {
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">{poll.question}</h1>
-      <ul className="flex flex-col gap-2">
-        {poll.options.map((option) => (
-          <li
-            key={option.id}
-            className="rounded-lg border border-black/10 px-4 py-3 dark:border-white/15"
-          >
-            {option.text}
-          </li>
-        ))}
-      </ul>
+      {poll.results ? (
+        <>
+          <p className="rounded-lg bg-black/5 px-4 py-3 text-sm dark:bg-white/10">
+            이미 참여한 투표입니다.
+          </p>
+          <ResultsView results={poll.results} myOptionId={poll.myOptionId} />
+        </>
+      ) : (
+        <VoteForm pollId={poll.id} options={poll.options} />
+      )}
     </div>
   );
 }

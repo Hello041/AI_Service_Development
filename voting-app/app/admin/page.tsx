@@ -31,9 +31,12 @@ export default async function AdminDashboardPage() {
             <li key={poll.id}>
               <Link
                 href={`/admin/polls/${poll.id}`}
-                className="block rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
+                className="flex items-baseline justify-between gap-3 rounded-lg border border-black/10 px-4 py-3 hover:bg-black/5 dark:border-white/15 dark:hover:bg-white/5"
               >
-                {poll.question}
+                <span>{poll.question}</span>
+                <span className="shrink-0 text-sm tabular-nums text-zinc-500">
+                  {poll.totalVotes}표
+                </span>
               </Link>
             </li>
           ))}

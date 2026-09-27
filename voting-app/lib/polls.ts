@@ -14,7 +14,7 @@ export type Query = <T = Record<string, unknown>>(
 
 export type Option = { id: number; text: string };
 
-export type PollSummary = { id: string; question: string };
+export type PollSummary = { id: string; question: string; totalVotes: number };
 
 export type Poll = {
   id: string;
@@ -49,7 +49,23 @@ function validatePoll(question: string, options: string[]): CreatePollError | nu
   return null;
 }
 
-export type PollService = ReturnType<typeof createPollService>;
+export type OptionResult = { id: number; text: string; votes: number; percent: number };
+
+export type Results = { totalVotes: number; options: OptionResult[] };
+
+export type VoterPollView = Poll & {
+  myOptionId: number | null;
+  // 결과 공개 조건을 만족하지 않으면 null
+  results: Results | null;
+};
+
+export type AdminPollView = Poll & { results: Results };
+
+export type CastVoteError = "poll_not_found" | "option_not_in_poll" | "already_voted";
+
+export type CastVoteResult = { ok: true } | { ok: false; error: CastVoteError };
+
+export type PollService =ReturnType<typeof createPollService>;
 
 export function createPollService(query: Query) {
   async function createPoll(
@@ -90,9 +106,89 @@ export function createPollService(query: Query) {
 
   async function listPolls(): Promise<PollSummary[]> {
     return query<PollSummary>(
-      `SELECT id, question FROM polls ORDER BY created_at DESC`,
+      `SELECT p.id, p.question,
+              (SELECT count(*)::int FROM votes v WHERE v.poll_id = p.id) AS "totalVotes"
+       FROM polls p
+       ORDER BY p.created_at DESC`,
     );
   }
 
-  return { createPoll, getPoll, listPolls };
+  async function castVote(
+    pollId: string,
+    optionId: number,
+    voterId: string,
+  ): Promise<CastVoteResult> {
+    // 조건을 만족할 때만 들어가도록 한 문장으로 넣고, 안 들어갔으면 이유를 따로 가려낸다.
+    const inserted = await query(
+      `INSERT INTO votes (poll_id, option_id, voter_id)
+       SELECT poll_id, id, $3 FROM options WHERE id = $2 AND poll_id = $1
+       ON CONFLICT (poll_id, voter_id) DO NOTHING
+       RETURNING id`,
+      [pollId, optionId, voterId],
+    );
+    if (inserted.length > 0) return { ok: true };
+
+    const [poll] = await query(`SELECT 1 FROM polls WHERE id = $1`, [pollId]);
+    if (!poll) return { ok: false, error: "poll_not_found" };
+    const [option] = await query(
+      `SELECT 1 FROM options WHERE id = $1 AND poll_id = $2`,
+      [optionId, pollId],
+    );
+    if (!option) return { ok: false, error: "option_not_in_poll" };
+    return { ok: false, error: "already_voted" };
+  }
+
+  async function getResults(pollId: string): Promise<Results> {
+    const rows = await query<{ id: number; text: string; votes: number }>(
+      `SELECT o.id, o.text, count(v.id)::int AS votes
+       FROM options o LEFT JOIN votes v ON v.option_id = o.id
+       WHERE o.poll_id = $1
+       GROUP BY o.id
+       ORDER BY o.position`,
+      [pollId],
+    );
+    const totalVotes = rows.reduce((sum, r) => sum + r.votes, 0);
+    return {
+      totalVotes,
+      options: rows.map((r) => ({
+        ...r,
+        percent: totalVotes === 0 ? 0 : Math.round((r.votes / totalVotes) * 100),
+      })),
+    };
+  }
+
+  async function getPollForVoter(
+    pollId: string,
+    voterId: string | null,
+  ): Promise<VoterPollView | null> {
+    const poll = await getPoll(pollId);
+    if (!poll) return null;
+    const [vote] = voterId
+      ? await query<{ option_id: number }>(
+          `SELECT option_id FROM votes WHERE poll_id = $1 AND voter_id = $2`,
+          [pollId, voterId],
+        )
+      : [];
+    const myOptionId = vote?.option_id ?? null;
+    return {
+      ...poll,
+      myOptionId,
+      results: myOptionId !== null ? await getResults(pollId) : null,
+    };
+  }
+
+  async function getPollForAdmin(pollId: string): Promise<AdminPollView | null> {
+    const poll = await getPoll(pollId);
+    if (!poll) return null;
+    return { ...poll, results: await getResults(pollId) };
+  }
+
+  return {
+    createPoll,
+    getPoll,
+    listPolls,
+    castVote,
+    getPollForVoter,
+    getPollForAdmin,
+  };
 }

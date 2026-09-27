@@ -2,6 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/admin-session";
 import { getPollService } from "@/lib/db";
+import { ResultsView } from "../../../results-view";
 
 export default async function AdminPollPage({
   params,
@@ -10,7 +11,7 @@ export default async function AdminPollPage({
   await requireAdmin();
   const { id } = await params;
   const { created } = await searchParams;
-  const poll = await getPollService().getPoll(id);
+  const poll = await getPollService().getPollForAdmin(id);
 
   if (!poll) {
     return (
@@ -47,16 +48,7 @@ export default async function AdminPollPage({
           className="w-full rounded-lg border border-black/15 bg-transparent px-3 py-2 text-sm dark:border-white/20"
         />
       </div>
-      <ul className="flex flex-col gap-2">
-        {poll.options.map((option) => (
-          <li
-            key={option.id}
-            className="rounded-lg border border-black/10 px-4 py-3 dark:border-white/15"
-          >
-            {option.text}
-          </li>
-        ))}
-      </ul>
+      <ResultsView results={poll.results} />
     </div>
   );
 }

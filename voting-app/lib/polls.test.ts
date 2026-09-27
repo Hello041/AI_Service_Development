@@ -85,3 +85,128 @@ describe("투표 조회", () => {
     expect(list.map((p) => p.question)).toEqual(["세 번째", "두 번째", "첫 번째"]);
   });
 });
+
+async function createPoll(question: string, options: string[]) {
+  const created = await polls.createPoll(question, options);
+  if (!created.ok) throw new Error(created.error);
+  const poll = await polls.getPoll(created.id);
+  if (!poll) throw new Error("만든 투표를 찾을 수 없음");
+  return poll;
+}
+
+describe("표 던지기", () => {
+  test("표를 던진 참여자는 결과와 자기가 고른 선택지를 본다", async () => {
+    const poll = await createPoll("회식 장소는?", ["고기집", "횟집"]);
+    const [meat, fish] = poll.options;
+
+    await polls.castVote(poll.id, fish.id, "voter-a");
+    const view = await polls.getPollForVoter(poll.id, "voter-a");
+
+    expect(view?.myOptionId).toBe(fish.id);
+    expect(view?.results).toEqual({
+      totalVotes: 1,
+      options: [
+        { id: meat.id, text: "고기집", votes: 0, percent: 0 },
+        { id: fish.id, text: "횟집", votes: 1, percent: 100 },
+      ],
+    });
+  });
+
+  test("표를 던지지 않은 참여자에게는 결과가 보이지 않는다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    await polls.castVote(poll.id, poll.options[0].id, "voter-a");
+
+    const stranger = await polls.getPollForVoter(poll.id, "voter-b");
+    const noCookie = await polls.getPollForVoter(poll.id, null);
+
+    expect(stranger).toMatchObject({ myOptionId: null, results: null });
+    expect(noCookie).toMatchObject({ myOptionId: null, results: null });
+  });
+
+  test("같은 참여자의 두 번째 표는 거부되고 첫 표가 유지된다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    const [a, b] = poll.options;
+    await polls.castVote(poll.id, a.id, "voter-a");
+
+    const second = await polls.castVote(poll.id, b.id, "voter-a");
+    const view = await polls.getPollForVoter(poll.id, "voter-a");
+
+    expect(second).toEqual({ ok: false, error: "already_voted" });
+    expect(view?.myOptionId).toBe(a.id);
+    expect(view?.results?.totalVotes).toBe(1);
+  });
+
+  test("다른 참여자는 각각 표를 던질 수 있다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    const [a, b] = poll.options;
+
+    expect(await polls.castVote(poll.id, a.id, "voter-a")).toEqual({ ok: true });
+    expect(await polls.castVote(poll.id, b.id, "voter-b")).toEqual({ ok: true });
+    expect((await polls.getPollForVoter(poll.id, "voter-a"))?.results?.totalVotes).toBe(2);
+  });
+
+  test("다른 투표의 선택지로 던진 표는 거부한다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+    const other = await createPoll("다른 질문", ["C", "D"]);
+
+    expect(await polls.castVote(poll.id, other.options[0].id, "voter-a")).toEqual({
+      ok: false,
+      error: "option_not_in_poll",
+    });
+  });
+
+  test("없는 투표에 던진 표는 거부한다", async () => {
+    expect(await polls.castVote("no-such-poll", 1, "voter-a")).toEqual({
+      ok: false,
+      error: "poll_not_found",
+    });
+  });
+});
+
+describe("결과", () => {
+  test("비율은 반올림한 정수 %이고, 표 수와 상관없이 만든 순서를 유지한다", async () => {
+    const poll = await createPoll("질문", ["A", "B", "C"]);
+    const [a, b, c] = poll.options;
+    await polls.castVote(poll.id, c.id, "v1");
+    await polls.castVote(poll.id, c.id, "v2");
+    await polls.castVote(poll.id, b.id, "v3");
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.results).toEqual({
+      totalVotes: 3,
+      options: [
+        { id: a.id, text: "A", votes: 0, percent: 0 },
+        { id: b.id, text: "B", votes: 1, percent: 33 },
+        { id: c.id, text: "C", votes: 2, percent: 67 },
+      ],
+    });
+  });
+
+  test("운영자는 표가 없어도 결과를 본다", async () => {
+    const poll = await createPoll("질문", ["A", "B"]);
+
+    const view = await polls.getPollForAdmin(poll.id);
+
+    expect(view?.results.totalVotes).toBe(0);
+    expect(view?.results.options.map((o) => o.percent)).toEqual([0, 0]);
+  });
+
+  test("운영자 조회도 없는 투표는 null이다", async () => {
+    expect(await polls.getPollForAdmin("no-such-poll")).toBeNull();
+  });
+
+  test("목록에 투표별 총 표 수가 나온다", async () => {
+    const first = await createPoll("첫 번째", ["A", "B"]);
+    await createPoll("두 번째", ["A", "B"]);
+    await polls.castVote(first.id, first.options[0].id, "v1");
+    await polls.castVote(first.id, first.options[1].id, "v2");
+
+    const list = await polls.listPolls();
+
+    expect(list.map((p) => [p.question, p.totalVotes])).toEqual([
+      ["두 번째", 0],
+      ["첫 번째", 2],
+    ]);
+  });
+});
